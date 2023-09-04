@@ -47,7 +47,7 @@ RUN cd /workdir \
  && apt-get --yes -qq update \
  && apt-get --yes -qq install flex libfl-dev bison ninja-build \
  && pip install -U pip setuptools \
- && pip install "cython<3" pytest sympy jinja2 pyyaml\
+ && pip install "cython<3" pytest sympy jinja2 pyyaml numpy \
  && git clone https://github.com/neuronsimulator/nrn.git \
  && cd nrn && mkdir build && cd build \
  && cmake -G Ninja -DPYTHON_EXECUTABLE=$(which python) -DCMAKE_INSTALL_PREFIX=$(pwd)/install -DNRN_ENABLE_MPI=ON -DNRN_ENABLE_INTERVIEWS=OFF \
@@ -62,7 +62,7 @@ RUN cd /workdir \
  && git clone  https://github.com/BlueBrain/neurodamus.git\
  && cd neurodamus\
  && pip install .
-ENV HOC_LIBRARY_PATH "/opt/src/neurodamus-py/core/hoc:$HOC_LIBRARY_PATH"
+ENV HOC_LIBRARY_PATH "/workdir/neurodamus-py/core/hoc:$HOC_LIBRARY_PATH"
 
 # Build model
 RUN cd /workdir/neurodamus \
