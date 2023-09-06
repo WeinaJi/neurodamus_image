@@ -26,10 +26,9 @@ RUN apt-get --yes -qq update \
 #build venv
 RUN cd /workdir \
  && python3 -m venv myenv \
- && source myenv/bin/activate
-
+ && source myenv/bin/activate \
 #pip install libsonata
-RUN CC=mpicc CXX=mpic++ pip install git+https://github.com/BlueBrain/libsonata.git@v0.1.22
+ && CC=mpicc CXX=mpic++ pip install git+https://github.com/BlueBrain/libsonata
 
 # Install libsonatareport
 RUN cd /workdir \
@@ -47,22 +46,32 @@ RUN cd /workdir \
  && apt-get --yes -qq update \
  && apt-get --yes -qq install flex libfl-dev bison ninja-build \
  && pip install -U pip setuptools \
- && pip install "cython<3" pytest sympy jinja2 pyyaml numpy \
+ && pip install -U "cython<3" pytest sympy jinja2 pyyaml numpy \
  && git clone https://github.com/neuronsimulator/nrn.git \
  && cd nrn && mkdir build && cd build \
- && cmake -G Ninja -DPYTHON_EXECUTABLE=$(which python) -DCMAKE_INSTALL_PREFIX=$(pwd)/install -DNRN_ENABLE_MPI=ON -DNRN_ENABLE_INTERVIEWS=OFF \
+ && cmake -DPYTHON_EXECUTABLE=$(which python) -DCMAKE_INSTALL_PREFIX=$(pwd)/install -DNRN_ENABLE_MPI=ON -DNRN_ENABLE_INTERVIEWS=OFF \
  -DNRN_ENABLE_CORENEURON=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCORENRN_ENABLE_REPORTING=ON -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR .. \
- && cmake --build . --parallel \
- && cmake --build . --target install
+ && make -j 2 \
+ && make install
 ENV PATH "/workdir/nrn/build/install/bin:$PATH"
 ENV PYTHONPATH "/workdir/nrn/build/install/lib/python:$PYTHONPATH"
 
-# pip install neurodamus
+#Build h5py with the local hdf5
+RUN source /workdir/myenv/bin/activate \
+ && pip install -U pip setuptools \
+ && pip install cython numpy wheel pkgconfig \
+ && MPICC="mpicc -shared" pip install --no-cache-dir --no-binary=mpi4py mpi4py \
+ && CC="mpicc" HDF5_MPI="ON" HDF5_INCLUDEDIR=/usr/include/hdf5/mpich HDF5_LIBDIR=/usr/lib/x86_64-linux-gnu/hdf5/mpich \
+    pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
+
+# Install neurodamus and prepare HOC_LIBRARY_PATH
 RUN cd /workdir \
- && git clone  https://github.com/BlueBrain/neurodamus.git\
- && cd neurodamus\
- && pip install .
-ENV HOC_LIBRARY_PATH "/workdir/neurodamus-py/core/hoc:$HOC_LIBRARY_PATH"
+ && source myenv/bin/activate \
+ && git clone https://github.com/BlueBrain/neurodamus.git \
+ && cd neurodamus \
+ && pip install . \
+ && cp core/hoc/* tests/share/hoc/
+ENV HOC_LIBRARY_PATH=/workdir/neurodamus/tests/share/hoc
 
 # Build model
 RUN cd /workdir/neurodamus \
@@ -70,12 +79,6 @@ RUN cd /workdir/neurodamus \
  && tar -xf O1_mods.xz \
  && cp -r mod tests/share/ \
  && cp core/mod/*.mod tests/share/mod/ \
- && nrnivmodl -coreneuron -incflags '-DENABLE_CORENEURON -I${SONATAREPORT_DIR}/include -I/usr/include/hdf5/mpich -I/usr/lib/x86_64-linux-gnu/mpich' -loadflags '-L${SONATAREPORT_DIR}/lib -lsonatareport -Wl,-rpath,${SONATAREPORT_DIR}/lib -L/usr/lib/x86_64-linux-gnu/hdf5/mpich -lhdf5 -Wl,-rpath,/usr/lib/x86_64-linux-gnu/hdf5/mpich/ -L/usr/lib/x86_64-linux-gnu/ -lmpich -Wl,-rpath,/usr/lib/x86_64-linux-gnu/' tests/share/mod
-
-# #ADD neurodamus_neocortex_multiscale_mod_full.tar.gz /opt/src/
-# RUN cd /workdir \
-#  && nrnivmodl -incflags "-DDISABLE_REPORTINGLIB -I/opt/conda/include/" -loadflags "-L/opt/conda/lib -L/opt/conda/lib64 -lmpi -lhdf5 -L/opt/src/libsonata/build/install/lib -lsonata" neurodamus_neocortex_multiscale_mod_full/
-# ENV PATH "/opt/src/x86_64:$PATH"
-# ENV LD_LIBRARY_PATH "/opt/src/x86_64:/opt/src/libsonata/build/install/lib:/opt/conda/lib:/opt/conda/lib64:$LD_LIBRARY_PATH"
-# ENV NRNMECH_LIB_PATH "/opt/src/x86_64/libnrnmech.so"
-# ENV HDF5_DISABLE_VERSION_CHECK=1
+ && nrnivmodl -coreneuron -incflags '-DENABLE_CORENEURON -I${SONATAREPORT_DIR}/include -I/usr/include/hdf5/mpich -I/usr/lib/x86_64-linux-gnu/mpich' \
+ -loadflags '-L${SONATAREPORT_DIR}/lib -lsonatareport -Wl,-rpath,${SONATAREPORT_DIR}/lib -L/usr/lib/x86_64-linux-gnu/hdf5/mpich -lhdf5 -Wl,-rpath,/usr/lib/x86_64-linux-gnu/hdf5/mpich/ -L/usr/lib/x86_64-linux-gnu/ -lmpich -Wl,-rpath,/usr/lib/x86_64-linux-gnu/' \
+ tests/share/mod
