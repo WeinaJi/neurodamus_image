@@ -5,8 +5,9 @@ MAINTAINER Weina Ji <weina.ji@epfl.ch>
 # Using SHELL instruction to change default shell for subsequent RUN instructions
 SHELL ["/bin/bash", "-c"]
 
-# Create a workdir directory 
-RUN mkdir /workdir
+# Create a directory for installation
+ARG WORKDIR=/opt/software
+RUN mkdir $WORKDIR
 
 # Install needed libs
 RUN apt-get --yes -qq update \
@@ -24,40 +25,41 @@ RUN apt-get --yes -qq update \
                       mpich libmpich-dev libhdf5-mpich-dev hdf5-tools
 
 #build venv
-RUN cd /workdir \
+RUN cd $WORKDIR \
  && python3 -m venv myenv \
  && source myenv/bin/activate \
 #pip install libsonata
  && CC=mpicc CXX=mpic++ pip install git+https://github.com/BlueBrain/libsonata
+ENV USR_VENV "$WORKDIR/myenv"
 
 # Install libsonatareport
-RUN cd /workdir \
+RUN cd $WORKDIR \
  && git clone https://github.com/BlueBrain/libsonatareport.git --recursive \
  && cd libsonatareport \
  && mkdir build && cd build \
  && cmake -DCMAKE_INSTALL_PREFIX=$(pwd)/install -DCMAKE_BUILD_TYPE=Release -DSONATA_REPORT_ENABLE_SUBMODULES=ON -DSONATA_REPORT_ENABLE_MPI=ON .. \
  && cmake --build . --parallel \
  && cmake --build . --target install
-ENV SONATAREPORT_DIR "/workdir/libsonatareport/build/install"
+ENV SONATAREPORT_DIR "$WORKDIR/libsonatareport/build/install"
 
 # Install neuron
-RUN cd /workdir \
- && source myenv/bin/activate \ 
+RUN source $USR_VENV/bin/activate \ 
  && apt-get --yes -qq update \
  && apt-get --yes -qq install flex libfl-dev bison ninja-build \
  && pip install -U pip setuptools \
  && pip install -U "cython<3" pytest sympy jinja2 pyyaml numpy \
+ && cd $WORKDIR \
  && git clone https://github.com/neuronsimulator/nrn.git \
  && cd nrn && mkdir build && cd build \
  && cmake -DPYTHON_EXECUTABLE=$(which python) -DCMAKE_INSTALL_PREFIX=$(pwd)/install -DNRN_ENABLE_MPI=ON -DNRN_ENABLE_INTERVIEWS=OFF \
  -DNRN_ENABLE_CORENEURON=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCORENRN_ENABLE_REPORTING=ON -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR .. \
- && make -j 2 \
- && make install
-ENV PATH "/workdir/nrn/build/install/bin:$PATH"
-ENV PYTHONPATH "/workdir/nrn/build/install/lib/python:$PYTHONPATH"
+ && cmake --build . -j 2 \
+ && cmake --build . --target install
+ENV PATH "$WORKDIR/nrn/build/install/bin:$PATH"
+ENV PYTHONPATH "$WORKDIR/nrn/build/install/lib/python:$PYTHONPATH"
 
 #Build h5py with the local hdf5
-RUN source /workdir/myenv/bin/activate \
+RUN source $USR_VENV/bin/activate \
  && pip install -U pip setuptools \
  && pip install cython numpy wheel pkgconfig \
  && MPICC="mpicc -shared" pip install --no-cache-dir --no-binary=mpi4py mpi4py \
@@ -65,20 +67,15 @@ RUN source /workdir/myenv/bin/activate \
     pip install --no-cache-dir --no-binary=h5py h5py --no-build-isolation
 
 # Install neurodamus and prepare HOC_LIBRARY_PATH
-RUN cd /workdir \
- && source myenv/bin/activate \
+RUN source $USR_VENV/bin/activate \
+ && cd $WORKDIR \
  && git clone https://github.com/BlueBrain/neurodamus.git \
  && cd neurodamus \
  && pip install . \
- && cp core/hoc/* tests/share/hoc/
-ENV HOC_LIBRARY_PATH=/workdir/neurodamus/tests/share/hoc
+ && cp tests/share/hoc/* core/hoc/
+ENV HOC_LIBRARY_PATH "$WORKDIR/neurodamus/core/hoc"
+ENV NEURODAMUS_PYTHON "$WORKDIR/neurodamus/"
+ENV EXTRA_MODS_DIR "$WORKDIR/neurodamus/core/mod"
 
-# Build model
-RUN cd /workdir/neurodamus \
- && wget --output-document="O1_mods.xz" --quiet "https://zenodo.org/record/8026353/files/O1_mods.xz?download=1" \
- && tar -xf O1_mods.xz \
- && cp -r mod tests/share/ \
- && cp core/mod/*.mod tests/share/mod/ \
- && nrnivmodl -coreneuron -incflags '-DENABLE_CORENEURON -I${SONATAREPORT_DIR}/include -I/usr/include/hdf5/mpich -I/usr/lib/x86_64-linux-gnu/mpich' \
- -loadflags '-L${SONATAREPORT_DIR}/lib -lsonatareport -Wl,-rpath,${SONATAREPORT_DIR}/lib -L/usr/lib/x86_64-linux-gnu/hdf5/mpich -lhdf5 -Wl,-rpath,/usr/lib/x86_64-linux-gnu/hdf5/mpich/ -L/usr/lib/x86_64-linux-gnu/ -lmpich -Wl,-rpath,/usr/lib/x86_64-linux-gnu/' \
- tests/share/mod
+ADD build_neurodamus.sh $WORKDIR/script/
+ENV PATH "$WORKDIR/script:$PATH"
