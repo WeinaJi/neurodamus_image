@@ -53,7 +53,7 @@ RUN source $USR_VENV/bin/activate \
  && cd nrn && mkdir build && cd build \
  && cmake -DPYTHON_EXECUTABLE=$(which python) -DCMAKE_INSTALL_PREFIX=$(pwd)/install -DNRN_ENABLE_MPI=ON -DNRN_ENABLE_INTERVIEWS=OFF \
  -DNRN_ENABLE_CORENEURON=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCORENRN_ENABLE_REPORTING=ON -DCMAKE_PREFIX_PATH=$SONATAREPORT_DIR .. \
- && cmake --build . -j 2 \
+ && cmake --build . -- -j 2 \
  && cmake --build . --target install
 ENV PATH "$WORKDIR/nrn/build/install/bin:$PATH"
 ENV PYTHONPATH "$WORKDIR/nrn/build/install/lib/python:$PYTHONPATH"

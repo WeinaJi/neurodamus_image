@@ -7,18 +7,18 @@ You must have:
 * [Git](https://git-scm.com/)
 
 ## Docker image
-You can either build your own docker image using the recipe in this repository or pull the image that we prebuilt on Docker Hub. 
+You can either build your own docker image using the recipe in this repository or pull the prebuilt image from the Docker Hub.
 
 ### Option 1: Build your docker image
-Before building your own docker image, you need to configure the memory limit for the Docker Desktop to be at least 4GB. (Settings->Resources->Memory) 
+Before building your own docker image, make sure that your Docker Desktop is configured with at least 4 GB memory and 2 GB swap. (Settings->Resources->Memory)
 ```
 git clone <docker recipe repo>
 cd <folder of DockerFile>
 docker build -t neurodamus .
 ```
-### Option 2: Pull the image from docker hub
+### Option 2: Pull the prebuilt image from Docker Hub
 ```
-docker pull weinaji weinaji/neurodamus:0.0.2
+docker pull weinaji/neurodamus:0.0.2
 ```
 You can verify your image with the command `docker image ls`, for example:
 ```
@@ -27,7 +27,7 @@ REPOSITORY                            TAG       IMAGE ID       CREATED        SI
 weinaji/neurodamus                    0.0.2     4784d73155e7   11 hours ago   4.08GB
 ```
 ## Run your neurodamus docker containier
-We start a neurodamus container with an interative Bash shell from the docker image, and meanwhile mount your local folder which contains your mod files and circuit data.
+With the docker image, you can start a neurodamus container with an interative Bash shell and meanwhile mount your local folder which contains your mod files and the circuit data.
 ```
 docker run --rm -it --entrypoint bash -v <folder_mods_circuit>:/mnt/mydata weinaji/neurodamus:0.0.2
 ```
@@ -37,13 +37,14 @@ cd /mnt/mydata/
 cp $EXTRA_MODS_DIR/* <your_mod_dir>/
 build_neurodamus.sh <your_mod_dir>/
 ```
-Then we are ready to start the simulation.
+Then you are ready to start the simulation.
 
 To run with a single process
 ```
+source $USR_VENV/bin/activate
 ./x86_64/special -mpi -python $NEURODAMUS_PYTHON/init.py --configFile=<your_folder>/simulation_config.json
 ```
-Or to run with multiple processes in parallel, e.g. 4 processes
+To run with multiple processes in parallel, e.g. 4 processes
 ```
 mpirun -np 4 ./x86_64/special -mpi -python $NEURODAMUS_PYTHON/init.py --configFile=<your_folder>/simulation_config.json
 ```
