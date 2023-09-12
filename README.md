@@ -36,12 +36,12 @@ In the Bash shell, first build your mods:
 cd /mnt/mydata/
 cp $EXTRA_MODS_DIR/* <your_mod_dir>/
 build_neurodamus.sh <your_mod_dir>/
+source $USR_VENV/bin/activate
 ```
 Then you are ready to start the simulation.
 
 To run with a single process
 ```
-source $USR_VENV/bin/activate
 ./x86_64/special -mpi -python $NEURODAMUS_PYTHON/init.py --configFile=<your_folder>/simulation_config.json
 ```
 To run with multiple processes in parallel, e.g. 4 processes
